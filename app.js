@@ -9,6 +9,9 @@ let directionsService;
 let directionsRenderer;
 let placesService;
 let restaurantMarkers = [];
+let currentPlaces = [];
+let currentCuisineFilters = [];
+let activeCuisineFilter = "all";
 
 // Called by Maps JS API when it loads (see script tag in index.html)
 function initMap() {
@@ -29,6 +32,28 @@ function initMap() {
 
   placesService = new google.maps.places.PlacesService(map);
 
+  // Attach Google Places Autocomplete to start & destination inputs
+  const startInput = document.getElementById("start");
+  const endInput = document.getElementById("end");
+
+  if (startInput && endInput && google.maps.places?.Autocomplete) {
+    const autocompleteOptions = {
+      fields: ["formatted_address", "geometry", "name"],
+    };
+
+    const startAutocomplete = new google.maps.places.Autocomplete(
+      startInput,
+      autocompleteOptions
+    );
+    const endAutocomplete = new google.maps.places.Autocomplete(
+      endInput,
+      autocompleteOptions
+    );
+
+    startAutocomplete.bindTo("bounds", map);
+    endAutocomplete.bindTo("bounds", map);
+  }
+
   attachFormHandler();
 }
 
@@ -48,6 +73,90 @@ function setResultCount(text, isActive) {
 function clearRestaurantMarkers() {
   restaurantMarkers.forEach((m) => m.setMap(null));
   restaurantMarkers = [];
+}
+
+// Derive human-readable cuisine tags from Google Places types
+function deriveCuisineTags(place) {
+  const tags = new Set();
+
+  if (Array.isArray(place.types)) {
+    place.types.forEach((type) => {
+      if (type.endsWith("_restaurant") && type !== "restaurant") {
+        const base = type.replace("_restaurant", "");
+        const pretty =
+          base.charAt(0).toUpperCase() + base.slice(1).replace(/_/g, " ");
+        tags.add(pretty);
+      }
+    });
+  }
+
+  return Array.from(tags);
+}
+
+function renderCuisineFilter() {
+  const container = document.getElementById("cuisine-filter");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  if (!currentCuisineFilters.length) {
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "flex";
+
+  const makeChip = (label, value) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className =
+      "cuisine-chip" +
+      (activeCuisineFilter === value ? " cuisine-chip--active" : "");
+    chip.textContent = label;
+    chip.addEventListener("click", () => {
+      activeCuisineFilter = value;
+      renderCuisineFilter();
+      renderRestaurants();
+    });
+    return chip;
+  };
+
+  container.appendChild(makeChip("All cuisines", "all"));
+
+  currentCuisineFilters.forEach((cuisine) => {
+    container.appendChild(makeChip(cuisine, cuisine));
+  });
+}
+
+function renderRestaurants() {
+  const listEl = document.getElementById("restaurant-list");
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+  clearRestaurantMarkers();
+
+  if (!currentPlaces.length) {
+    setResultCount("0 matches", false);
+    return;
+  }
+
+  const filtered = currentPlaces.filter((place) => {
+    if (activeCuisineFilter === "all") return true;
+    const cuisines = place._cuisines || [];
+    return cuisines.includes(activeCuisineFilter);
+  });
+
+  if (!filtered.length) {
+    setResultCount("0 matches", false);
+    return;
+  }
+
+  setError("");
+  setResultCount(`${filtered.length} suggestion(s)`, true);
+
+  filtered.forEach((place, index) => {
+    addRestaurantResult(place, index);
+  });
 }
 
 // --- Route + restaurant logic ----------------------------------------------
@@ -164,11 +273,7 @@ function findRoutePointForMinuteOffset(leg, targetMinutes) {
 }
 
 function searchRestaurantsNearPoint(latLng, options) {
-  const { cuisine, openNow, leg } = options;
-
-  clearRestaurantMarkers();
-  const listEl = document.getElementById("restaurant-list");
-  listEl.innerHTML = "";
+  const { cuisine, openNow } = options;
 
   return new Promise((resolve, reject) => {
     const request = {
@@ -186,19 +291,29 @@ function searchRestaurantsNearPoint(latLng, options) {
         return reject(new Error("Places search failed: " + status));
       }
 
-      const top = results.slice(0, 5);
+      const top = results.slice(0, 10);
       if (!top.length) {
         setError("No restaurants matched your filters near the meal time.");
         setResultCount("0 matches", false);
         return resolve();
       }
 
-      setError("");
-      setResultCount(`${top.length} suggestion(s)`, true);
-
-      top.forEach((place, index) => {
-        addRestaurantResult(place, index, latLng, leg);
+      // Attach derived cuisines to each place and build cuisine filters
+      currentPlaces = top.map((place) => {
+        place._cuisines = deriveCuisineTags(place);
+        return place;
       });
+
+      const cuisineSet = new Set();
+      currentPlaces.forEach((place) => {
+        (place._cuisines || []).forEach((c) => cuisineSet.add(c));
+      });
+
+      currentCuisineFilters = Array.from(cuisineSet).sort();
+      activeCuisineFilter = "all";
+
+      renderCuisineFilter();
+      renderRestaurants();
 
       resolve();
     });
@@ -206,7 +321,7 @@ function searchRestaurantsNearPoint(latLng, options) {
 }
 
 // Add restaurant to list + map marker
-function addRestaurantResult(place, index, centerLatLng, leg) {
+function addRestaurantResult(place, index) {
   const listEl = document.getElementById("restaurant-list");
 
   const li = document.createElement("li");
@@ -239,6 +354,14 @@ function addRestaurantResult(place, index, centerLatLng, leg) {
     vicinitySpan.textContent = place.vicinity;
     metaEl.appendChild(vicinitySpan);
   }
+
+  const cuisines = place._cuisines || [];
+  cuisines.forEach((cuisineLabel) => {
+    const cuisineSpan = document.createElement("span");
+    cuisineSpan.className = "meta-tag";
+    cuisineSpan.textContent = cuisineLabel;
+    metaEl.appendChild(cuisineSpan);
+  });
 
   const tagSpan = document.createElement("span");
   tagSpan.className = "meta-tag";
