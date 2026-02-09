@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Meal Stop Planner</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; }
+    label { display: block; margin-top: 10px; }
+    input, select, button { padding: 6px; width: 100%; max-width: 400px; }
+    #results div { margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Meal Stop Planner</h1>
+
+  <form id="planner-form">
+    <label>
+      Starting point
+      <input id="start" type="text" placeholder="Eg: Chennai Central" required />
+    </label>
+
+    <label>
+      Destination
+      <input id="end" type="text" placeholder="Eg: Chennai Airport" required />
+    </label>
+
+    <label>
+      Journey start time
+      <input id="journeyTime" type="time" required />
+    </label>
+
+    <label>
+      Preferred meal time
+      <input id="mealTime" type="time" required />
+    </label>
+
+    <label>
+      Cuisine interested
+      <input id="cuisine" type="text" placeholder="Eg: Indian, Chinese, Italian" />
+    </label>
+
+    <button type="submit">Find restaurants</button>
+  </form>
+
+  <h2>Suggested restaurants</h2>
+  <div id="results"></div>
+
+  <!-- Load Maps JS API with Places & Directions libraries -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDqKeq3a0O__Mm7EQLy0zrHYuJUq8Ly1Ps&libraries=places"
+    async defer>
+  </script>
+
+  <script>
+    let map;
+    let placesService;
+    let directionsService;
+
+    // Poll until Maps JS has loaded
+    function waitForMapsReady(callback) {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        callback();
+      } else {
+        setTimeout(() => waitForMapsReady(callback), 200);
+      }
+    }
+
+    function initServices() {
+      // Dummy map just to initialise services; we don't actually show it
+      map = new google.maps.Map(document.createElement('div'));
+      placesService = new google.maps.places.PlacesService(map);
+      directionsService = new google.maps.DirectionsService();
+    }
+
+    function timeStringToMinutes(str) {
+      const [h, m] = str.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function handleSubmit(event) {
+      event.preventDefault();
+
+      const start = document.getElementById('start').value;
+      const end = document.getElementById('end').value;
+      const journeyTime = document.getElementById('journeyTime').value;
+      const mealTime = document.getElementById('mealTime').value;
+      const cuisine = document.getElementById('cuisine').value.trim();
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = 'Calculating route and searching restaurants...';
+
+      if (!start || !end || !journeyTime || !mealTime) {
+        resultsDiv.textContent = 'Please fill all required fields.';
+        return;
+      }
+
+      const journeyMinutes = timeStringToMinutes(journeyTime);
+      const mealMinutes = timeStringToMinutes(mealTime);
+      let offsetMinutes = mealMinutes - journeyMinutes;
+      if (offsetMinutes < 0) offsetMinutes += 24 * 60; // simple next-day wrap
+
+      // 1. Get route between start and end
+      directionsService.route(
+        {
+          origin: start,
+          destination: end,
+          travelMode: google.maps.TravelMode.DRIVING
+        },
+        (response, status) => {
+          if (status !== google.maps.DirectionsStatus.OK) {
+            resultsDiv.textContent = 'Could not get route: ' + status;
+            return;
+          }
+
+          const route = response.routes[0];
+          const leg = route.legs[0];
+          const totalDuration = leg.duration.value; // seconds
+
+          // Approximate point along the route where meal time occurs
+          const mealSecondsFromStart = offsetMinutes * 60;
+          const fraction =
+            totalDuration > 0
+              ? Math.min(Math.max(mealSecondsFromStart / totalDuration, 0), 1)
+              : 0.5;
+
+          // Find the step where this time falls
+          let accumulated = 0;
+          let targetLocation = leg.steps[0].end_location;
+
+          for (const step of leg.steps) {
+            accumulated += step.duration.value;
+            if (accumulated >= mealSecondsFromStart) {
+              targetLocation = step.end_location;
+              break;
+            }
+          }
+
+          // 2. Nearby search for restaurants around that point
+          const request = {
+            location: targetLocation,
+            radius: 3000, // 3 km
+            type: 'restaurant',
+            keyword: cuisine || undefined
+          };
+
+          placesService.nearbySearch(request, (places, status2) => {
+            if (status2 !== google.maps.places.PlacesServiceStatus.OK || !places.length) {
+              resultsDiv.textContent = 'No matching restaurants found.';
+              return;
+            }
+
+            const topFive = places.slice(0, 5);
+            resultsDiv.innerHTML = '';
+
+            topFive.forEach(place => {
+              const div = document.createElement('div');
+              const name = document.createElement('strong');
+              name.textContent = place.name;
+
+              const address = document.createElement('div');
+              address.textContent = place.vicinity || place.formatted_address || '';
+
+              const rating = document.createElement('div');
+              rating.textContent =
+                place.rating ? ('Rating: ' + place.rating + ' / 5') : 'Rating: N/A';
+
+              const mapsLink = document.createElement('a');
+              mapsLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                place.name + ' ' + (place.vicinity || '')
+              )}`;
+              mapsLink.target = '_blank';
+              mapsLink.textContent = 'Open in Google Maps';
+
+              div.appendChild(name);
+              div.appendChild(document.createElement('br'));
+              div.appendChild(address);
+              div.appendChild(rating);
+              div.appendChild(mapsLink);
+
+              resultsDiv.appendChild(div);
+            });
+          });
+        }
+      );
+    }
+
+    document.getElementById('planner-form').addEventListener('submit', () => {
+      waitForMapsReady(() => {
+        if (!placesService || !directionsService) {
+          initServices();
+        }
+        handleSubmit(event);
+      });
+    });
+  </script>
+</body>
+</html>
