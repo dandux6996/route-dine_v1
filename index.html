@@ -4,70 +4,50 @@
   <meta charset="utf-8" />
   <title>Meal Stop Planner</title>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 10px; }
-    .container { display: flex; height: calc(100vh - 60px); gap: 10px; }
-    #map { flex: 1; min-height: 400px; height: 100%; border-radius: 4px; }
-    #sidebar { width: 350px; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 15px; overflow-y: auto; }
-    #sidebar h2 { margin-top: 0; }
-    .form-section { max-width: 400px; margin-bottom: 20px; }
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; }
     label { display: block; margin-top: 10px; }
-    input, select, button { padding: 8px; width: 100%; box-sizing: border-box; }
-    button { background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #3367d6; }
-    #results { margin-top: 20px; }
-    #results div { margin: 10px 0; padding: 12px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; }
+    input, select, button { padding: 6px; width: 100%; max-width: 400px; }
+    #map { height: 300px; width: 100%; margin: 20px 0; border: 1px solid #ddd; border-radius: 4px; }
+    #results div { margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
     #results strong { color: #1a73e8; }
-    #results a { color: #1a73e8; text-decoration: none; }
-    #results a:hover { text-decoration: underline; }
-    .loading { text-align: center; color: #666; }
-    @media (max-width: 768px) {
-      .container { flex-direction: column; height: auto; }
-      #sidebar { width: auto; order: -1; }
-      #map { order: 0; height: 50vh; }
-    }
   </style>
 </head>
 <body>
-  <h1 style="margin-bottom: 20px;">Meal Stop Planner</h1>
+  <h1>Meal Stop Planner</h1>
 
-  <div class="form-section">
-    <form id="planner-form">
-      <label>
-        Starting point
-        <input id="start" type="text" placeholder="Eg: Chennai Central" required />
-      </label>
+  <form id="planner-form">
+    <label>
+      Starting point
+      <input id="start" type="text" placeholder="Eg: Chennai Central" required />
+    </label>
 
-      <label>
-        Destination
-        <input id="end" type="text" placeholder="Eg: Chennai Airport" required />
-      </label>
+    <label>
+      Destination
+      <input id="end" type="text" placeholder="Eg: Chennai Airport" required />
+    </label>
 
-      <label>
-        Journey start time
-        <input id="journeyTime" type="time" required />
-      </label>
+    <label>
+      Journey start time
+      <input id="journeyTime" type="time" required />
+    </label>
 
-      <label>
-        Preferred meal time
-        <input id="mealTime" type="time" required />
-      </label>
+    <label>
+      Preferred meal time
+      <input id="mealTime" type="time" required />
+    </label>
 
-      <label>
-        Cuisine interested
-        <input id="cuisine" type="text" placeholder="Eg: Indian, Chinese, Italian" />
-      </label>
+    <label>
+      Cuisine interested
+      <input id="cuisine" type="text" placeholder="Eg: Indian, Chinese, Italian" />
+    </label>
 
-      <button type="submit">Plan trip & find restaurants</button>
-    </form>
-  </div>
+    <button type="submit">Find restaurants</button>
+  </form>
 
-  <div class="container">
-    <div id="map"></div>
-    <div id="sidebar">
-      <h2>Trip details & suggestions</h2>
-      <div id="results" class="loading">Enter details above to see the route and restaurant suggestions.</div>
-    </div>
-  </div>
+  <div id="map"></div>
+
+  <h2>Suggested restaurants</h2>
+  <div id="results"></div>
 
   <!-- Load Maps JS API with Places & Directions libraries -->
   <script
@@ -80,12 +60,11 @@
     let placesService;
     let directionsService;
     let directionsRenderer;
-    let restaurantMarkers = [];
 
     function initMap() {
       map = new google.maps.Map(document.getElementById('map'), {
         zoom: 10,
-        center: { lat: 13.0827, lng: 80.2707 } // Default to Chennai
+        center: { lat: 13.0827, lng: 80.2707 } // Chennai
       });
       placesService = new google.maps.places.PlacesService(map);
       directionsService = new google.maps.DirectionsService();
@@ -100,14 +79,8 @@
       return h * 60 + m;
     }
 
-    function clearMarkers() {
-      restaurantMarkers.forEach(marker => marker.setMap(null));
-      restaurantMarkers = [];
-    }
-
     function handleSubmit(event) {
       event.preventDefault();
-      clearMarkers();
 
       const start = document.getElementById('start').value;
       const end = document.getElementById('end').value;
@@ -115,10 +88,10 @@
       const mealTime = document.getElementById('mealTime').value;
       const cuisine = document.getElementById('cuisine').value.trim();
       const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '<div class="loading">Calculating route and searching restaurants...</div>';
+      resultsDiv.innerHTML = 'Calculating route and searching restaurants...';
 
       if (!start || !end || !journeyTime || !mealTime) {
-        resultsDiv.innerHTML = '<div>No route calculated. Please fill all required fields.</div>';
+        resultsDiv.textContent = 'Please fill all required fields.';
         return;
       }
 
@@ -127,7 +100,7 @@
       let offsetMinutes = mealMinutes - journeyMinutes;
       if (offsetMinutes < 0) offsetMinutes += 24 * 60;
 
-      // Get route
+      // 1. Show route on map
       directionsService.route(
         {
           origin: start,
@@ -136,7 +109,7 @@
         },
         (response, status) => {
           if (status !== google.maps.DirectionsStatus.OK) {
-            resultsDiv.innerHTML = `<div>Route error: ${status}</div>`;
+            resultsDiv.textContent = 'Could not get route: ' + status;
             return;
           }
 
@@ -145,10 +118,11 @@
           const leg = route.legs[0];
           const totalDuration = leg.duration.value; // seconds
 
+          // Approximate point along the route where meal time occurs
           const mealSecondsFromStart = offsetMinutes * 60;
           const fraction = totalDuration > 0 ? Math.min(Math.max(mealSecondsFromStart / totalDuration, 0), 1) : 0.5;
 
-          // Find location along route for meal time
+          // Find the step where this time falls
           let accumulated = 0;
           let targetLocation = leg.steps[0].end_location;
 
@@ -163,7 +137,7 @@
           map.setCenter(targetLocation);
           map.setZoom(12);
 
-          // Nearby restaurants
+          // 2. Nearby search for restaurants around that point
           const request = {
             location: targetLocation,
             radius: 3000, // 3 km
@@ -173,32 +147,18 @@
 
           placesService.nearbySearch(request, (places, status2) => {
             if (status2 !== google.maps.places.PlacesServiceStatus.OK || !places.length) {
-              resultsDiv.innerHTML = '<div>No matching restaurants found nearby the meal point.</div>';
+              resultsDiv.innerHTML = '<div>No matching restaurants found.</div>';
               return;
             }
 
             const topFive = places.slice(0, 5);
             resultsDiv.innerHTML = `
-              <div><strong>Route distance:</strong> ${leg.distance.text}</div>
-              <div><strong>Route time:</strong> ${leg.duration.text}</div>
-              <div><strong>Meal point:</strong> ~${Math.round(fraction * 100)}% along route</div>
+              <div><strong>Route:</strong> ${leg.distance.text} (${leg.duration.text})</div>
+              <div>Map zoomed to approximate meal location.</div>
               <h3>Top 5 restaurants:</h3>
             `;
 
-            topFive.forEach((place, i) => {
-              // Add marker
-              const marker = new google.maps.Marker({
-                position: place.geometry.location,
-                map: map,
-                title: place.name,
-                icon: {
-                  url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                  scaledSize: new google.maps.Size(32, 32)
-                }
-              });
-              restaurantMarkers.push(marker);
-
-              // List item
+            topFive.forEach(place => {
               const div = document.createElement('div');
               const name = document.createElement('strong');
               name.textContent = place.name;
@@ -207,12 +167,12 @@
               address.textContent = place.vicinity || place.formatted_address || '';
 
               const rating = document.createElement('div');
-              rating.textContent = place.rating ? `Rating: ${place.rating}/5` : 'Rating: N/A';
+              rating.textContent = place.rating ? ('Rating: ' + place.rating + ' / 5') : 'Rating: N/A';
 
               const mapsLink = document.createElement('a');
               mapsLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ' + (place.vicinity || ''))}`;
               mapsLink.target = '_blank';
-              mapsLink.textContent = 'Open in Maps';
+              mapsLink.textContent = 'Open in Google Maps';
 
               div.appendChild(name);
               div.appendChild(document.createElement('br'));
