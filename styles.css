@@ -200,6 +200,34 @@ input[type="checkbox"] {
   margin-bottom: 6px;
 }
 
+.cuisine-filter {
+  display: none;
+  margin: 4px 0 2px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cuisine-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.6);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  padding: 3px 9px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cuisine-chip--active {
+  border-color: var(--accent-strong);
+  background: rgba(56, 189, 248, 0.2);
+  color: #e0f2fe;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
