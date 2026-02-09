@@ -1,196 +1,116 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Meal Stop Planner</title>
-  <style>
-    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; }
-    label { display: block; margin-top: 10px; }
-    input, select, button { padding: 6px; width: 100%; max-width: 400px; }
-    #map { height: 300px; width: 100%; margin: 20px 0; border: 1px solid #ddd; border-radius: 4px; }
-    #results div { margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-    #results strong { color: #1a73e8; }
-  </style>
-</head>
-<body>
-  <h1>Meal Stop Planner</h1>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resto Discovery – Route-Based Restaurant Finder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark">🍽️</span>
+          <div class="brand-text">
+            <h1>Resto Discovery</h1>
+            <p>Find the perfect stop along your route</p>
+          </div>
+        </div>
+      </header>
 
-  <form id="planner-form">
-    <label>
-      Starting point
-      <input id="start" type="text" placeholder="Eg: Chennai Central" required />
-    </label>
+      <main class="app-main">
+        <section class="controls">
+          <form id="route-form" class="card">
+            <h2>Plan your food stop</h2>
 
-    <label>
-      Destination
-      <input id="end" type="text" placeholder="Eg: Chennai Airport" required />
-    </label>
+            <div class="field-group">
+              <label for="start">Starting point</label>
+              <input
+                id="start"
+                name="start"
+                type="text"
+                placeholder="e.g. Bengaluru Airport"
+                required
+              />
+            </div>
 
-    <label>
-      Journey start time
-      <input id="journeyTime" type="time" required />
-    </label>
+            <div class="field-group">
+              <label for="end">Destination</label>
+              <input
+                id="end"
+                name="end"
+                type="text"
+                placeholder="e.g. Mysuru Palace"
+                required
+              />
+            </div>
 
-    <label>
-      Preferred meal time
-      <input id="mealTime" type="time" required />
-    </label>
+            <div class="field-row">
+              <div class="field-group">
+                <label for="journeyTime">Journey start time</label>
+                <input id="journeyTime" name="journeyTime" type="time" required />
+              </div>
+              <div class="field-group">
+                <label for="mealTime">Target meal time</label>
+                <input id="mealTime" name="mealTime" type="time" required />
+              </div>
+            </div>
 
-    <label>
-      Cuisine interested
-      <input id="cuisine" type="text" placeholder="Eg: Indian, Chinese, Italian" />
-    </label>
+            <div class="field-row">
+              <div class="field-group">
+                <label for="cuisine">Cuisine (optional)</label>
+                <input
+                  id="cuisine"
+                  name="cuisine"
+                  type="text"
+                  placeholder="e.g. Indian, Italian"
+                />
+              </div>
+              <div class="field-group">
+                <label for="openNow">
+                  <input id="openNow" type="checkbox" />
+                  Only show places likely open
+                </label>
+              </div>
+            </div>
 
-    <button type="submit">Find restaurants</button>
-  </form>
+            <button type="submit" class="primary-button">
+              Find restaurants along the route
+            </button>
 
-  <div id="map"></div>
+            <p class="hint">
+              Results are based on Google Maps directions and places along your
+              route. Set your API key in <code>app.js</code>.
+            </p>
+          </form>
 
-  <h2>Suggested restaurants</h2>
-  <div id="results"></div>
+          <section class="results card">
+            <div class="results-header">
+              <h2>Suggested stops</h2>
+              <span id="result-count" class="pill pill-muted">No results yet</span>
+            </div>
+            <ol id="restaurant-list" class="restaurant-list"></ol>
+            <div id="error" class="error-message" hidden></div>
+          </section>
+        </section>
 
-  <!-- Load Maps JS API with Places & Directions libraries -->
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDqKeq3a0O__Mm7EQLy0zrHYuJUq8Ly1Ps&libraries=places"
-    async defer>
-  </script>
+        <section class="map-panel card">
+          <div class="map-header">
+            <h2>Route map</h2>
+            <span class="pill">Powered by Google Maps</span>
+          </div>
+          <div id="map" class="map"></div>
+        </section>
+      </main>
+    </div>
 
-  <script>
-    let map;
-    let placesService;
-    let directionsService;
-    let directionsRenderer;
+    <script src="app.js"></script>
+    <!-- TODO: Replace YOUR_API_KEY_HERE with your actual key -->
+    <script
+      async
+      defer
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDqKeq3a0O__Mm7EQLy0zrHYuJUq8Ly1Ps&libraries=places&callback=initMap"
+    ></script>
+  </body>
+  </html>
 
-    function initMap() {
-      map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 10,
-        center: { lat: 13.0827, lng: 80.2707 } // Chennai
-      });
-      placesService = new google.maps.places.PlacesService(map);
-      directionsService = new google.maps.DirectionsService();
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        map: map,
-        suppressMarkers: false
-      });
-    }
-
-    function timeStringToMinutes(str) {
-      const [h, m] = str.split(':').map(Number);
-      return h * 60 + m;
-    }
-
-    function handleSubmit(event) {
-      event.preventDefault();
-
-      const start = document.getElementById('start').value;
-      const end = document.getElementById('end').value;
-      const journeyTime = document.getElementById('journeyTime').value;
-      const mealTime = document.getElementById('mealTime').value;
-      const cuisine = document.getElementById('cuisine').value.trim();
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = 'Calculating route and searching restaurants...';
-
-      if (!start || !end || !journeyTime || !mealTime) {
-        resultsDiv.textContent = 'Please fill all required fields.';
-        return;
-      }
-
-      const journeyMinutes = timeStringToMinutes(journeyTime);
-      const mealMinutes = timeStringToMinutes(mealTime);
-      let offsetMinutes = mealMinutes - journeyMinutes;
-      if (offsetMinutes < 0) offsetMinutes += 24 * 60;
-
-      // 1. Show route on map
-      directionsService.route(
-        {
-          origin: start,
-          destination: end,
-          travelMode: google.maps.TravelMode.DRIVING
-        },
-        (response, status) => {
-          if (status !== google.maps.DirectionsStatus.OK) {
-            resultsDiv.textContent = 'Could not get route: ' + status;
-            return;
-          }
-
-          directionsRenderer.setDirections(response);
-          const route = response.routes[0];
-          const leg = route.legs[0];
-          const totalDuration = leg.duration.value; // seconds
-
-          // Approximate point along the route where meal time occurs
-          const mealSecondsFromStart = offsetMinutes * 60;
-          const fraction = totalDuration > 0 ? Math.min(Math.max(mealSecondsFromStart / totalDuration, 0), 1) : 0.5;
-
-          // Find the step where this time falls
-          let accumulated = 0;
-          let targetLocation = leg.steps[0].end_location;
-
-          for (const step of leg.steps) {
-            accumulated += step.duration.value;
-            if (accumulated >= mealSecondsFromStart) {
-              targetLocation = step.end_location;
-              break;
-            }
-          }
-
-          map.setCenter(targetLocation);
-          map.setZoom(12);
-
-          // 2. Nearby search for restaurants around that point
-          const request = {
-            location: targetLocation,
-            radius: 3000, // 3 km
-            type: 'restaurant',
-            keyword: cuisine || undefined
-          };
-
-          placesService.nearbySearch(request, (places, status2) => {
-            if (status2 !== google.maps.places.PlacesServiceStatus.OK || !places.length) {
-              resultsDiv.innerHTML = '<div>No matching restaurants found.</div>';
-              return;
-            }
-
-            const topFive = places.slice(0, 5);
-            resultsDiv.innerHTML = `
-              <div><strong>Route:</strong> ${leg.distance.text} (${leg.duration.text})</div>
-              <div>Map zoomed to approximate meal location.</div>
-              <h3>Top 5 restaurants:</h3>
-            `;
-
-            topFive.forEach(place => {
-              const div = document.createElement('div');
-              const name = document.createElement('strong');
-              name.textContent = place.name;
-
-              const address = document.createElement('div');
-              address.textContent = place.vicinity || place.formatted_address || '';
-
-              const rating = document.createElement('div');
-              rating.textContent = place.rating ? ('Rating: ' + place.rating + ' / 5') : 'Rating: N/A';
-
-              const mapsLink = document.createElement('a');
-              mapsLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ' + (place.vicinity || ''))}`;
-              mapsLink.target = '_blank';
-              mapsLink.textContent = 'Open in Google Maps';
-
-              div.appendChild(name);
-              div.appendChild(document.createElement('br'));
-              div.appendChild(address);
-              div.appendChild(rating);
-              div.appendChild(mapsLink);
-
-              resultsDiv.appendChild(div);
-            });
-          });
-        }
-      );
-    }
-
-    // Init on load
-    window.initMap = initMap;
-
-    document.getElementById('planner-form').addEventListener('submit', handleSubmit);
-  </script>
-</body>
-</html>
