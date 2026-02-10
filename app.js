@@ -1,7 +1,7 @@
 // --- Configuration ---------------------------------------------------------
 // Replace this with your real Google Maps API key, or
 // keep it here and configure the script tag in index.html instead.
-const GOOGLE_MAPS_API_KEY = "YOUR_API_KEY_HERE";
+const GOOGLE_MAPS_API_KEY = "AIzaSyDqKeq3a0O__Mm7EQLy0zrHYuJUq8Ly1Ps";
 
 // --- Global map state ------------------------------------------------------
 let map;
